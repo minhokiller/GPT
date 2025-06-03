@@ -1,0 +1,56 @@
+provider "aws" {
+  region = local.region
+  profile = "vllm-admin"
+}
+
+# ECR always authenticates with `us-east-1` region
+# Docs -> https://docs.aws.amazon.com/AmazonECR/latest/public/public-registries.html
+provider "aws" {
+  alias  = "ecr"
+  region = "us-east-1"
+  profile = "vllm-admin"
+}
+
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+  config_context = local.name
+}
+
+provider "helm" {
+  kubernetes {
+    config_path = "~/.kube/config"
+    config_context = local.name
+  }
+}
+provider "kubectl" {
+  load_config_file       = true
+}
+
+data "aws_eks_cluster_auth" "this" {
+  name = module.eks.cluster_name
+}
+
+data "aws_availability_zones" "available" {}
+
+data "aws_ecrpublic_authorization_token" "token" {
+  provider = aws.ecr
+}
+
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+locals {
+  name                   = var.name
+  region                 = var.region
+  azs                    = slice(data.aws_availability_zones.available.names, 0, 2)
+  partition              = data.aws_partition.current.partition
+  account_id             = data.aws_caller_identity.current.account_id
+  mlflow_name            = "mlflow"
+  mlflow_namespace       = "mlflow"
+  mlflow_service_account = "mlflow"
+
+  tags = {
+    Blueprint  = local.name
+    GithubRepo = "github.com/awslabs/ai-on-eks"
+  }
+}
